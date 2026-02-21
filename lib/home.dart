@@ -17,6 +17,7 @@ class _HomePageState extends State<HomePage> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
+  final Map<DateTime, List<String>> _events = {};
   final user = FirebaseAuth.instance.currentUser;
 
   void _goToPreviousMonth() {
@@ -29,6 +30,59 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _focusedDay = DateTime(_focusedDay.year, _focusedDay.month + 1, 1);
     });
+  }
+
+  List<String> _getEventsForDay(DateTime day) {
+    return _events[DateTime(day.year, day.month, day.day)] ?? [];
+  }
+
+  void _addEventDialog() {
+    if (_selectedDay == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('날짜를 먼저 선택해주세요.')));
+      return;
+    }
+
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("일정 추가"),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: "일정 내용을 입력하세요"),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("취소"),
+          ),
+          TextButton(
+            onPressed: () {
+              final text = controller.text.trim();
+              if (text.isNotEmpty) {
+                final dayKey = DateTime(
+                  _selectedDay!.year,
+                  _selectedDay!.month,
+                  _selectedDay!.day,
+                );
+
+                if (_events[dayKey] != null) {
+                  _events[dayKey]!.add(text);
+                } else {
+                  _events[dayKey] = [text];
+                }
+
+                setState(() {}); // UI 업데이트
+              }
+              Navigator.pop(context);
+            },
+            child: const Text("저장"),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -240,52 +294,147 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
 
-          /// 🔥 달력은 남은 공간 100%
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final totalHeight = constraints.maxHeight;
-                final rowHeight = totalHeight / 7;
+
+                final daysOfWeekHeight = totalHeight * 0.05; // 요일 5%
+                final rowHeight = (totalHeight - daysOfWeekHeight) / 5;
 
                 return TableCalendar(
                   locale: 'ko_KR',
                   headerVisible: false,
                   rowHeight: rowHeight,
-                  daysOfWeekHeight: rowHeight * 0.8,
-
+                  daysOfWeekHeight: daysOfWeekHeight,
                   firstDay: DateTime.utc(2020, 1, 1),
                   lastDay: DateTime.utc(2030, 12, 31),
                   focusedDay: _focusedDay,
-
-                  onPageChanged: (focusedDay) {
-                    setState(() {
-                      _focusedDay = focusedDay;
-                    });
-                  },
-
-                  selectedDayPredicate: (day) {
-                    return isSameDay(_selectedDay, day);
-                  },
-
+                  selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
                   onDaySelected: (selectedDay, focusedDay) {
                     setState(() {
                       _selectedDay = selectedDay;
                       _focusedDay = focusedDay;
                     });
                   },
-
                   calendarStyle: const CalendarStyle(
-                    isTodayHighlighted: false, // 오늘 기본 강조 제거
+                    isTodayHighlighted: false,
+                    defaultTextStyle: TextStyle(fontWeight: FontWeight.bold),
                     selectedDecoration: BoxDecoration(
                       color: AppColors.main,
                       shape: BoxShape.circle,
                     ),
                   ),
+                  calendarBuilders: CalendarBuilders(
+                    defaultBuilder: (context, day, focusedDay) {
+                      final events =
+                          _events[DateTime(day.year, day.month, day.day)] ?? [];
+
+                      return Column(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        children: [
+                          // 날짜만 동그라미
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: Colors.transparent, // 기본은 투명
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              '${day.day}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 2),
+                          // 일정 텍스트 표시
+                          ...events
+                              .take(2)
+                              .map(
+                                (e) => Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Text(
+                                    e,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                        ],
+                      );
+                    },
+                    selectedBuilder: (context, day, focusedDay) {
+                      final events =
+                          _events[DateTime(day.year, day.month, day.day)] ?? [];
+
+                      return Column(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        children: [
+                          // 선택된 날짜만 동그라미 강조
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: const BoxDecoration(
+                              color: AppColors.main,
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              '${day.day}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+
+                          // 선택된 날짜 일정 표시
+                          ...events
+                              .take(2)
+                              .map(
+                                (e) => Padding(
+                                  padding: const EdgeInsets.only(top: 4.0),
+                                  child: Text(
+                                    e,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                        ],
+                      );
+                    },
+                  ),
+                  onPageChanged: (focusedDay) {
+                    setState(() {
+                      _focusedDay = focusedDay;
+                    });
+                  },
                 );
               },
             ),
           ),
         ],
+      ),
+      // 버튼 눌러서 선택된 날짜에 이벤트 추가
+      floatingActionButton: FloatingActionButton(
+        onPressed: _addEventDialog,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
+        backgroundColor: AppColors.main,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
