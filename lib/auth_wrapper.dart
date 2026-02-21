@@ -1,0 +1,31 @@
+import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:sharely/home.dart';
+import 'package:sharely/login.dart';
+
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        // 로딩 중
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        // 로그인 상태
+        if (snapshot.hasData) {
+          return const HomePage();
+        }
+
+        // 로그아웃 상태
+        return const LoginPage();
+      },
+    );
+  }
+}
