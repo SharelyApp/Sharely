@@ -5,9 +5,10 @@ import 'package:sharely/login.dart';
 import 'package:sharely/theme/colors.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:lunar/lunar.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({Key? key}) : super(key: key);
+  const HomePage({super.key});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -16,6 +17,42 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
+
+  @override
+  void initState() {
+    super.initState();
+    // 앱 시작 시 오늘 날짜 선택
+    _selectedDay = _focusedDay;
+  }
+
+  // 오늘 버튼 활성화 여부 계산
+  bool get isTodaySelected {
+    final today = DateTime.now();
+    return _selectedDay != null &&
+        _selectedDay!.year == today.year &&
+        _selectedDay!.month == today.month &&
+        _selectedDay!.day == today.day;
+  }
+
+  // 공휴일(나중에 API 연동해서 실제 공휴일 데이터로 변경 예정)
+  String? _getHolidayName(DateTime day) {
+    final holidays = <DateTime, String>{
+      DateTime(day.year, 1, 1): "새해",
+      DateTime(day.year, 2, 17): "설날",
+      DateTime(day.year, 3, 1): "삼일절",
+      DateTime(day.year, 5, 5): "어린이날",
+      DateTime(day.year, 5, 24): "부처님오신날",
+      DateTime(day.year, 6, 6): "현충일",
+      DateTime(day.year, 7, 17): "제헌절",
+      DateTime(day.year, 8, 15): "광복절",
+      DateTime(day.year, 9, 25): "추석",
+      DateTime(day.year, 10, 3): "개천절",
+      DateTime(day.year, 10, 9): "한글날",
+      DateTime(day.year, 12, 25): "크리스마스",
+    };
+
+    return holidays[DateTime(day.year, day.month, day.day)];
+  }
 
   final Map<DateTime, List<String>> _events = {};
   final user = FirebaseAuth.instance.currentUser;
@@ -37,51 +74,197 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _addEventDialog() {
-    if (_selectedDay == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('날짜를 먼저 선택해주세요.')));
-      return;
-    }
-
+    DateTime selectedDate = DateTime.now();
+    String selectedCategory = "기본";
     final controller = TextEditingController();
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("일정 추가"),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(hintText: "일정 내용을 입력하세요"),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("취소"),
-          ),
-          TextButton(
-            onPressed: () {
-              final text = controller.text.trim();
-              if (text.isNotEmpty) {
-                final dayKey = DateTime(
-                  _selectedDay!.year,
-                  _selectedDay!.month,
-                  _selectedDay!.day,
-                );
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            title: const Text("일정 추가"),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 날짜 선택
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "${selectedDate.year}.${selectedDate.month}.${selectedDate.day}",
+                      ),
+                      TextButton(
+                        child: const Text("날짜 변경"),
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: selectedDate,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2030),
+                            locale: const Locale('ko', 'KR'),
+                          );
 
-                if (_events[dayKey] != null) {
-                  _events[dayKey]!.add(text);
-                } else {
-                  _events[dayKey] = [text];
-                }
+                          if (picked != null) {
+                            setStateDialog(() {
+                              selectedDate = picked;
+                            });
+                          }
+                        },
+                      ),
+                    ],
+                  ),
 
-                setState(() {}); // UI 업데이트
-              }
-              Navigator.pop(context);
-            },
-            child: const Text("저장"),
-          ),
-        ],
+                  const SizedBox(height: 12),
+
+                  // 카테고리 선택
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedCategory,
+                    items: ["기본", "업무", "개인", "약속"]
+                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setStateDialog(() {
+                          selectedCategory = value;
+                        });
+                      }
+                    },
+                    decoration: const InputDecoration(labelText: "카테고리"),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // 일정 내용
+                  TextField(
+                    controller: controller,
+                    decoration: const InputDecoration(hintText: "일정 내용을 입력하세요"),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("취소"),
+              ),
+              TextButton(
+                onPressed: () {
+                  final text = controller.text.trim();
+                  if (text.isNotEmpty) {
+                    final dayKey = DateTime(
+                      selectedDate.year,
+                      selectedDate.month,
+                      selectedDate.day,
+                    );
+
+                    final eventText = "[$selectedCategory] $text";
+
+                    if (_events[dayKey] != null) {
+                      _events[dayKey]!.add(eventText);
+                    } else {
+                      _events[dayKey] = [eventText];
+                    }
+
+                    setState(() {}); // 캘린더 업데이트
+                  }
+
+                  Navigator.pop(context);
+                },
+                child: const Text("저장"),
+              ),
+            ],
+          );
+        },
       ),
+    );
+  }
+
+  // 일정 조회 다이얼로그
+  void _showEventDetailDialog(DateTime dayKey, String eventText) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          /// 타이틀 영역에 X 버튼 추가
+          titlePadding: const EdgeInsets.fromLTRB(20, 20, 10, 0),
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back_ios_outlined),
+                splashRadius: 20,
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+
+          content: Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Text(eventText),
+          ),
+
+          actions: [
+            /// ✏ 수정
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _showEditEventDialog(dayKey, eventText);
+              },
+              child: const Text("수정"),
+            ),
+
+            // 삭제
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _events[dayKey]?.remove(eventText);
+                  if (_events[dayKey]?.isEmpty ?? false) {
+                    _events.remove(dayKey);
+                  }
+                });
+                Navigator.pop(context);
+              },
+              child: const Text("삭제", style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // 일정 수정 다이얼로그
+  void _showEditEventDialog(DateTime dayKey, String oldEvent) {
+    final controller = TextEditingController(text: oldEvent);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("일정 수정"),
+          content: TextField(controller: controller),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("취소"),
+            ),
+            TextButton(
+              onPressed: () {
+                final newText = controller.text.trim();
+                if (newText.isNotEmpty) {
+                  setState(() {
+                    final index = _events[dayKey]!.indexOf(oldEvent);
+                    _events[dayKey]![index] = newText;
+                  });
+                }
+                Navigator.pop(context);
+              },
+              child: const Text("저장"),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -90,9 +273,9 @@ class _HomePageState extends State<HomePage> {
     final screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
-      /// 🔥 사이드 메뉴
+      // 사이드 메뉴
       drawer: SizedBox(
-        width: screenWidth * 0.6, // ✅ 화면 50%
+        width: screenWidth * 0.6, // 화면 50%
         child: Drawer(
           child: Column(
             children: [
@@ -137,12 +320,20 @@ class _HomePageState extends State<HomePage> {
               ListTile(
                 contentPadding: const EdgeInsets.only(left: 24),
                 leading: Icon(Icons.palette_outlined, size: 20),
-                title: Text("캘린더 테마"),
+                title: Text("테마 설정"),
                 onTap: () {
                   Navigator.pop(context);
                 },
               ),
 
+              ListTile(
+                contentPadding: const EdgeInsets.only(left: 24),
+                leading: Icon(Icons.view_agenda_outlined, size: 20),
+                title: Text("캘린더 버전"),
+                onTap: () {
+                  Navigator.pop(context);
+                },
+              ),
               ListTile(
                 contentPadding: const EdgeInsets.only(left: 24),
                 leading: Icon(Icons.info_outline, size: 20),
@@ -189,13 +380,28 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         centerTitle: false,
         title: Text(
-          "${_focusedDay.year}. ${_focusedDay.month}",
+          "${_focusedDay.year}. ${_focusedDay.month.toString().padLeft(2, '0')}",
           style: const TextStyle(
             fontSize: 26,
             fontWeight: FontWeight.bold,
             color: Colors.black,
           ),
         ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 5.0),
+            child: IconButton(
+              icon: const Icon(
+                Icons.search_outlined,
+                color: Colors.black,
+                size: 30,
+              ),
+              onPressed: () {
+                print("검색창 클릭");
+              },
+            ),
+          ),
+        ],
       ),
 
       body: Column(
@@ -208,8 +414,15 @@ class _HomePageState extends State<HomePage> {
                 /// 오늘 버튼
                 TextButton(
                   style: TextButton.styleFrom(
-                    side: const BorderSide(
-                      color: AppColors.buttonborderColor,
+                    backgroundColor: isTodaySelected
+                        ? AppColors.main
+                        : Colors.transparent,
+                    side: BorderSide(
+                      color:
+                          _selectedDay != null &&
+                              isSameDay(_selectedDay, DateTime.now())
+                          ? AppColors.main
+                          : AppColors.buttonborderColor,
                       width: 1.5,
                     ),
                     shape: RoundedRectangleBorder(
@@ -223,20 +436,24 @@ class _HomePageState extends State<HomePage> {
                   onPressed: () {
                     final today = DateTime.now();
                     setState(() {
-                      _focusedDay = today;
-                      _selectedDay = today;
+                      if (isTodaySelected) {
+                        // 이미 오늘이 선택되어 있으면 선택 해제
+                        _selectedDay = null;
+                      } else {
+                        _focusedDay = today;
+                        _selectedDay = today;
+                      }
                     });
                   },
-                  child: const Text(
+                  child: Text(
                     "오늘",
                     style: TextStyle(
-                      color: Colors.black,
+                      color: isTodaySelected ? Colors.white : Colors.black,
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
                     ),
                   ),
                 ),
-
                 const SizedBox(width: 10),
 
                 /// 이전 달
@@ -310,6 +527,7 @@ class _HomePageState extends State<HomePage> {
                   firstDay: DateTime.utc(2020, 1, 1),
                   lastDay: DateTime.utc(2030, 12, 31),
                   focusedDay: _focusedDay,
+                  eventLoader: _getEventsForDay,
                   selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
                   onDaySelected: (selectedDay, focusedDay) {
                     setState(() {
@@ -320,6 +538,7 @@ class _HomePageState extends State<HomePage> {
                   calendarStyle: const CalendarStyle(
                     isTodayHighlighted: false,
                     defaultTextStyle: TextStyle(fontWeight: FontWeight.bold),
+                    markersMaxCount: 0,
                     selectedDecoration: BoxDecoration(
                       color: AppColors.main,
                       shape: BoxShape.circle,
@@ -327,94 +546,221 @@ class _HomePageState extends State<HomePage> {
                   ),
                   calendarBuilders: CalendarBuilders(
                     defaultBuilder: (context, day, focusedDay) {
-                      final events =
-                          _events[DateTime(day.year, day.month, day.day)] ?? [];
+                      final isSelected = isSameDay(_selectedDay, day);
+                      final holidayName = _getHolidayName(day);
+                      final isHoliday = holidayName != null;
 
-                      return Column(
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        children: [
-                          // 날짜만 동그라미
-                          Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: Colors.transparent, // 기본은 투명
-                              shape: BoxShape.circle,
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              '${day.day}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
+                      final lunar = Lunar.fromDate(day);
+                      final lunarMonth = lunar.getMonth();
+                      final lunarDay = lunar.getDay();
 
-                          const SizedBox(height: 2),
-                          // 일정 텍스트 표시
-                          ...events
-                              .take(2)
-                              .map(
-                                (e) => Padding(
-                                  padding: const EdgeInsets.only(top: 4),
+                      final events = _getEventsForDay(day);
+
+                      return Container(
+                        padding: const EdgeInsets.only(top: 5),
+                        alignment: Alignment.topCenter,
+                        child: Column(
+                          children: [
+                            /// 위쪽 영역 (날짜 + 공휴일)
+                            Column(
+                              children: [
+                                Container(
+                                  width: 30,
+                                  height: 30,
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? AppColors.main
+                                        : Colors.transparent,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  alignment: Alignment.center,
                                   child: Text(
-                                    e,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.black87,
+                                    '${day.day}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: isHoliday
+                                          ? Colors.red
+                                          : isSelected
+                                          ? Colors.white
+                                          : Colors.black,
                                     ),
                                   ),
                                 ),
+                                const SizedBox(height: 3),
+
+                                if (holidayName != null)
+                                  Text(
+                                    holidayName,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.red,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                              ],
+                            ),
+
+                            ...events
+                                .take(2)
+                                .map(
+                                  (e) => GestureDetector(
+                                    onTap: () {
+                                      final dayKey = DateTime(
+                                        day.year,
+                                        day.month,
+                                        day.day,
+                                      );
+
+                                      // 여기서 수정창이 아니라 조회창을 열도록 변경
+                                      _showEventDetailDialog(dayKey, e);
+                                    },
+                                    child: Text(
+                                      e,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.black,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
+                            /// 이 Expanded 가 핵심
+                            Expanded(
+                              child: Align(
+                                alignment: Alignment.bottomCenter,
+                                child: Text(
+                                  '$lunarMonth/$lunarDay',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey,
+                                  ),
+                                ),
                               ),
-                        ],
+                            ),
+                          ],
+                        ),
                       );
                     },
                     selectedBuilder: (context, day, focusedDay) {
-                      final events =
-                          _events[DateTime(day.year, day.month, day.day)] ?? [];
+                      final holidayName = _getHolidayName(day);
+                      final isHoliday = holidayName != null;
 
-                      return Column(
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        children: [
-                          // 선택된 날짜만 동그라미 강조
-                          Container(
-                            width: 28,
-                            height: 28,
-                            decoration: const BoxDecoration(
-                              color: AppColors.main,
-                              shape: BoxShape.circle,
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              '${day.day}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 2),
+                      final lunar = Lunar.fromDate(day);
+                      final lunarMonth = lunar.getMonth();
+                      final lunarDay = lunar.getDay();
 
-                          // 선택된 날짜 일정 표시
-                          ...events
-                              .take(2)
-                              .map(
-                                (e) => Padding(
-                                  padding: const EdgeInsets.only(top: 4.0),
+                      final events = _getEventsForDay(day);
+
+                      return Container(
+                        padding: const EdgeInsets.only(top: 5),
+                        alignment: Alignment.topCenter,
+                        child: Column(
+                          children: [
+                            /// 위쪽 영역 (날짜 + 공휴일)
+                            Column(
+                              children: [
+                                Container(
+                                  width: 30,
+                                  height: 30,
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.main,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  alignment: Alignment.center,
                                   child: Text(
-                                    e,
-                                    overflow: TextOverflow.ellipsis,
+                                    '${day.day}',
                                     style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.black,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
                                     ),
                                   ),
                                 ),
+                                const SizedBox(height: 3),
+
+                                if (holidayName != null)
+                                  Text(
+                                    holidayName,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.red, // 항상 빨간색 유지
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                              ],
+                            ),
+
+                            if (events.isNotEmpty)
+                              ...events
+                                  .take(2)
+                                  .map(
+                                    (e) => GestureDetector(
+                                      // 🔥 여기도 동일
+                                      onTap: () {
+                                        _showEventDetailDialog(day, e);
+                                      },
+                                      child: Text(
+                                        e,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+                            /// 음력은 항상 하단
+                            Expanded(
+                              child: Align(
+                                alignment: Alignment.bottomCenter,
+                                child: Text(
+                                  '$lunarMonth/$lunarDay',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey,
+                                  ),
+                                ),
                               ),
-                        ],
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    outsideBuilder: (context, day, focusedDay) {
+                      final lunar = Lunar.fromDate(day);
+                      final lunarMonth = lunar.getMonth();
+                      final lunarDay = lunar.getDay();
+
+                      return Container(
+                        padding: const EdgeInsets.only(top: 5),
+                        alignment: Alignment.topCenter,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              width: 30,
+                              height: 30,
+                              alignment: Alignment.center,
+                              child: Text(
+                                '${day.day}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey, // 다른 달은 흐리게
+                                ),
+                              ),
+                            ),
+                            Text(
+                              '$lunarMonth/$lunarDay',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
                       );
                     },
                   ),
