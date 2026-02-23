@@ -7,7 +7,7 @@ import 'package:sharely/theme/colors.dart';
 
 /// 로그인 페이지
 class LoginPage extends StatefulWidget {
-  const LoginPage({Key? key}) : super(key: key);
+  const LoginPage({super.key});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -80,7 +80,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 TextField(
                   controller: passwordController,
-                  obscureText: false, // 비밀번호 안보이게
+                  obscureText: true, // 비밀번호 안보이게
                   decoration: InputDecoration(
                     hintText: "비밀번호를 입력해주세요.",
                     hintStyle: TextStyle(color: AppColors.grayTextColor),

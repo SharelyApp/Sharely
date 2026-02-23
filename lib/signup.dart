@@ -6,7 +6,7 @@ import 'package:sharely/auth_wrapper.dart';
 
 /// 회원가입 페이지 (이름 + 이메일 + 비밀번호)
 class SignupPage extends StatefulWidget {
-  const SignupPage({Key? key}) : super(key: key);
+  const SignupPage({super.key});
 
   @override
   State<SignupPage> createState() => _SignupPageState();
@@ -57,7 +57,13 @@ class _SignupPageState extends State<SignupPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("회원가입"), centerTitle: true),
+      appBar: AppBar(
+        title: const Text(
+          "회원가입",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
