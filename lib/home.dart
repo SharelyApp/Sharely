@@ -54,6 +54,13 @@ class _HomePageState extends State<HomePage> {
     return holidays[DateTime(day.year, day.month, day.day)];
   }
 
+  final Map<String, Color> categoryColors = {
+    "기본": Colors.grey,
+    "업무": Colors.blue,
+    "개인": Colors.green,
+    "약속": Colors.orange,
+  };
+
   final Map<DateTime, List<String>> _events = {};
   final user = FirebaseAuth.instance.currentUser;
 
@@ -76,108 +83,276 @@ class _HomePageState extends State<HomePage> {
   void _addEventDialog() {
     DateTime selectedDate = DateTime.now();
     String selectedCategory = "기본";
+    String selectedRepeat = "없음";
     final controller = TextEditingController();
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) {
-          return AlertDialog(
-            title: const Text("일정 추가"),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 날짜 선택
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "${selectedDate.year}.${selectedDate.month}.${selectedDate.day}",
-                      ),
-                      TextButton(
-                        child: const Text("날짜 변경"),
-                        onPressed: () async {
-                          final picked = await showDatePicker(
-                            context: context,
-                            initialDate: selectedDate,
-                            firstDate: DateTime(2020),
-                            lastDate: DateTime(2030),
-                            locale: const Locale('ko', 'KR'),
-                          );
-
-                          if (picked != null) {
-                            setStateDialog(() {
-                              selectedDate = picked;
-                            });
-                          }
-                        },
-                      ),
-                    ],
+      isScrollControlled: true, // 키보드 올라올 때 같이 올라가게
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return DraggableScrollableSheet(
+              initialChildSize: 0.7,
+              minChildSize: 0.4,
+              maxChildSize: 0.95,
+              expand: false,
+              builder: (context, scrollController) {
+                return Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(25),
+                    ),
                   ),
+                  child: SafeArea(
+                    child: Column(
+                      children: [
+                        // 상단 드래그 바
+                        const SizedBox(height: 10),
+                        Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
 
-                  const SizedBox(height: 12),
+                        const SizedBox(height: 15),
 
-                  // 카테고리 선택
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedCategory,
-                    items: ["기본", "업무", "개인", "약속"]
-                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                        .toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setStateDialog(() {
-                          selectedCategory = value;
-                        });
-                      }
-                    },
-                    decoration: const InputDecoration(labelText: "카테고리"),
+                        // 상단 버튼 영역
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              // 취소
+                              IconButton(
+                                icon: const Icon(Icons.close),
+                                onPressed: () => Navigator.pop(context),
+                                style: IconButton.styleFrom(
+                                  backgroundColor: AppColors.buttonborderColor,
+                                ),
+                              ),
+
+                              // 저장
+                              IconButton(
+                                icon: const Icon(Icons.check),
+                                onPressed: () {
+                                  final text = controller.text.trim();
+                                  if (text.isNotEmpty) {
+                                    final dayKey = DateTime(
+                                      selectedDate.year,
+                                      selectedDate.month,
+                                      selectedDate.day,
+                                    );
+
+                                    final eventText =
+                                        "[$selectedCategory] $text";
+
+                                    if (_events[dayKey] != null) {
+                                      _events[dayKey]!.add(eventText);
+                                    } else {
+                                      _events[dayKey] = [eventText];
+                                    }
+
+                                    setState(() {});
+                                  }
+
+                                  Navigator.pop(context);
+                                },
+                                style: IconButton.styleFrom(
+                                  backgroundColor: AppColors.main.withOpacity(
+                                    0.15,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // 내용 영역 (스크롤 가능)
+                        Expanded(
+                          child: SingleChildScrollView(
+                            controller: scrollController,
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: Column(
+                              children: [
+                                // 일정 제목
+                                TextField(
+                                  controller: controller,
+                                  maxLines: 1,
+                                  decoration: const InputDecoration(
+                                    hintText: "제목",
+                                    isDense: true,
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                  ),
+                                  style: const TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.grayTextColor,
+                                  ),
+                                ),
+
+                                const SizedBox(height: 15),
+
+                                /// 날짜 선택
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      "${selectedDate.year}.${selectedDate.month}.${selectedDate.day}",
+                                      style: const TextStyle(fontSize: 16),
+                                    ),
+                                    TextButton(
+                                      child: const Text("날짜 변경"),
+                                      onPressed: () async {
+                                        final picked = await showDatePicker(
+                                          context: context,
+                                          initialDate: selectedDate,
+                                          firstDate: DateTime(2020),
+                                          lastDate: DateTime(2030),
+                                          locale: const Locale('ko', 'KR'),
+                                        );
+
+                                        if (picked != null) {
+                                          setStateDialog(() {
+                                            selectedDate = picked;
+                                          });
+                                        }
+                                      },
+                                    ),
+                                  ],
+                                ),
+
+                                const SizedBox(height: 15),
+
+                                // 반복 설정
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      "반복",
+                                      style: TextStyle(fontSize: 16),
+                                    ),
+
+                                    SizedBox(
+                                      width: 100,
+                                      child: DropdownButtonFormField<String>(
+                                        value: selectedRepeat,
+                                        items:
+                                            [
+                                                  "없음",
+                                                  "매일",
+                                                  "매주",
+                                                  "매월",
+                                                  "매년",
+                                                  "사용자화",
+                                                ]
+                                                .map(
+                                                  (e) => DropdownMenuItem(
+                                                    value: e,
+                                                    child: Text(e),
+                                                  ),
+                                                )
+                                                .toList(),
+                                        onChanged: (value) {
+                                          if (value != null) {
+                                            setStateDialog(() {
+                                              selectedRepeat = value;
+                                            });
+                                          }
+                                        },
+                                        decoration: const InputDecoration(
+                                          isDense: true,
+                                          border: InputBorder.none,
+                                          enabledBorder: InputBorder.none,
+                                          focusedBorder: InputBorder.none,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                const SizedBox(height: 15),
+
+                                // 카테고리 선택
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      "카테고리",
+                                      style: TextStyle(fontSize: 16),
+                                    ),
+
+                                    SizedBox(
+                                      width: 100,
+                                      child: DropdownButtonFormField<String>(
+                                        value: selectedCategory,
+                                        items: categoryColors.keys.map((
+                                          category,
+                                        ) {
+                                          return DropdownMenuItem(
+                                            value: category,
+                                            child: Row(
+                                              children: [
+                                                Container(
+                                                  width: 10,
+                                                  height: 10,
+                                                  margin: const EdgeInsets.only(
+                                                    right: 8,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color:
+                                                        categoryColors[category],
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                ),
+                                                Text(category),
+                                              ],
+                                            ),
+                                          );
+                                        }).toList(),
+                                        onChanged: (value) {
+                                          if (value != null) {
+                                            setStateDialog(() {
+                                              selectedCategory = value;
+                                            });
+                                          }
+                                        },
+                                        decoration: const InputDecoration(
+                                          isDense: true,
+                                          border: InputBorder.none,
+                                          enabledBorder: InputBorder.none,
+                                          focusedBorder: InputBorder.none,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 40),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-
-                  const SizedBox(height: 12),
-
-                  // 일정 내용
-                  TextField(
-                    controller: controller,
-                    decoration: const InputDecoration(hintText: "일정 내용을 입력하세요"),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("취소"),
-              ),
-              TextButton(
-                onPressed: () {
-                  final text = controller.text.trim();
-                  if (text.isNotEmpty) {
-                    final dayKey = DateTime(
-                      selectedDate.year,
-                      selectedDate.month,
-                      selectedDate.day,
-                    );
-
-                    final eventText = "[$selectedCategory] $text";
-
-                    if (_events[dayKey] != null) {
-                      _events[dayKey]!.add(eventText);
-                    } else {
-                      _events[dayKey] = [eventText];
-                    }
-
-                    setState(() {}); // 캘린더 업데이트
-                  }
-
-                  Navigator.pop(context);
-                },
-                child: const Text("저장"),
-              ),
-            ],
-          );
-        },
-      ),
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 
@@ -696,7 +871,7 @@ class _HomePageState extends State<HomePage> {
                                   .take(2)
                                   .map(
                                     (e) => GestureDetector(
-                                      // 🔥 여기도 동일
+                                      // 여기도 동일
                                       onTap: () {
                                         _showEventDetailDialog(day, e);
                                       },
