@@ -4,6 +4,8 @@ import 'package:sharely/auth_service.dart';
 import 'package:sharely/login.dart';
 import 'package:sharely/theme/colors.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:sharely/month_calendar.dart';
+import 'package:sharely/home_drawer.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lunar/lunar.dart';
 
@@ -445,112 +447,9 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-
     return Scaffold(
       // 사이드 메뉴
-      drawer: SizedBox(
-        width: screenWidth * 0.6, // 화면 50%
-        child: Drawer(
-          child: Column(
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(24, 100, 24, 20),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        FirebaseAuth.instance.currentUser?.displayName ?? "사용자",
-                        style: const TextStyle(
-                          color: Colors.black,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        FirebaseAuth.instance.currentUser?.email ?? "",
-                        style: const TextStyle(
-                          color: Colors.black54,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              ListTile(
-                contentPadding: const EdgeInsets.only(left: 24),
-                leading: Icon(Icons.folder_open_outlined, size: 20),
-                title: Text("카테고리"),
-                onTap: () {
-                  Navigator.pop(context);
-                },
-              ),
-
-              ListTile(
-                contentPadding: const EdgeInsets.only(left: 24),
-                leading: Icon(Icons.palette_outlined, size: 20),
-                title: Text("테마 설정"),
-                onTap: () {
-                  Navigator.pop(context);
-                },
-              ),
-
-              ListTile(
-                contentPadding: const EdgeInsets.only(left: 24),
-                leading: Icon(Icons.view_agenda_outlined, size: 20),
-                title: Text("캘린더 버전"),
-                onTap: () {
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                contentPadding: const EdgeInsets.only(left: 24),
-                leading: Icon(Icons.info_outline, size: 20),
-                title: Text("고객지원"),
-                onTap: () {
-                  Navigator.pop(context);
-                },
-              ),
-
-              ListTile(
-                contentPadding: const EdgeInsets.only(left: 24),
-                leading: Icon(Icons.settings_outlined, size: 20),
-                title: Text("설정"),
-                onTap: () {
-                  Navigator.pop(context);
-                },
-              ),
-
-              const Spacer(),
-
-              ListTile(
-                contentPadding: const EdgeInsets.only(left: 24, bottom: 30),
-                title: const Text(
-                  "로그아웃",
-                  style: TextStyle(
-                    color: Colors.red,
-                    decoration: TextDecoration.underline,
-                    decorationColor: Colors.red,
-                  ),
-                ),
-                onTap: () {
-                  context.read<AuthService>().signOut();
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => LoginPage()),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
+      drawer: const HomeDrawer(),
 
       appBar: AppBar(
         centerTitle: false,
@@ -687,265 +586,26 @@ class _HomePageState extends State<HomePage> {
           ),
 
           Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final totalHeight = constraints.maxHeight;
-
-                final daysOfWeekHeight = totalHeight * 0.05; // 요일 5%
-                final rowHeight = (totalHeight - daysOfWeekHeight) / 5;
-
-                return TableCalendar(
-                  locale: 'ko_KR',
-                  headerVisible: false,
-                  rowHeight: rowHeight,
-                  daysOfWeekHeight: daysOfWeekHeight,
-                  firstDay: DateTime.utc(2020, 1, 1),
-                  lastDay: DateTime.utc(2030, 12, 31),
-                  focusedDay: _focusedDay,
-                  eventLoader: _getEventsForDay,
-                  selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                  onDaySelected: (selectedDay, focusedDay) {
-                    setState(() {
-                      _selectedDay = selectedDay;
-                      _focusedDay = focusedDay;
-                    });
-                  },
-                  calendarStyle: const CalendarStyle(
-                    isTodayHighlighted: false,
-                    defaultTextStyle: TextStyle(fontWeight: FontWeight.bold),
-                    markersMaxCount: 0,
-                    selectedDecoration: BoxDecoration(
-                      color: AppColors.main,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  calendarBuilders: CalendarBuilders(
-                    defaultBuilder: (context, day, focusedDay) {
-                      final isSelected = isSameDay(_selectedDay, day);
-                      final holidayName = _getHolidayName(day);
-                      final isHoliday = holidayName != null;
-
-                      final lunar = Lunar.fromDate(day);
-                      final lunarMonth = lunar.getMonth();
-                      final lunarDay = lunar.getDay();
-
-                      final events = _getEventsForDay(day);
-
-                      return Container(
-                        padding: const EdgeInsets.only(top: 5),
-                        alignment: Alignment.topCenter,
-                        child: Column(
-                          children: [
-                            /// 위쪽 영역 (날짜 + 공휴일)
-                            Column(
-                              children: [
-                                Container(
-                                  width: 30,
-                                  height: 30,
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? AppColors.main
-                                        : Colors.transparent,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    '${day.day}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: isHoliday
-                                          ? Colors.red
-                                          : isSelected
-                                          ? Colors.white
-                                          : Colors.black,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 3),
-
-                                if (holidayName != null)
-                                  Text(
-                                    holidayName,
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.red,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                              ],
-                            ),
-
-                            ...events
-                                .take(2)
-                                .map(
-                                  (e) => GestureDetector(
-                                    onTap: () {
-                                      final dayKey = DateTime(
-                                        day.year,
-                                        day.month,
-                                        day.day,
-                                      );
-
-                                      // 여기서 수정창이 아니라 조회창을 열도록 변경
-                                      _showEventDetailDialog(dayKey, e);
-                                    },
-                                    child: Text(
-                                      e,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.black,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-
-                            /// 이 Expanded 가 핵심
-                            Expanded(
-                              child: Align(
-                                alignment: Alignment.bottomCenter,
-                                child: Text(
-                                  '$lunarMonth/$lunarDay',
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                    selectedBuilder: (context, day, focusedDay) {
-                      final holidayName = _getHolidayName(day);
-                      final isHoliday = holidayName != null;
-
-                      final lunar = Lunar.fromDate(day);
-                      final lunarMonth = lunar.getMonth();
-                      final lunarDay = lunar.getDay();
-
-                      final events = _getEventsForDay(day);
-
-                      return Container(
-                        padding: const EdgeInsets.only(top: 5),
-                        alignment: Alignment.topCenter,
-                        child: Column(
-                          children: [
-                            /// 위쪽 영역 (날짜 + 공휴일)
-                            Column(
-                              children: [
-                                Container(
-                                  width: 30,
-                                  height: 30,
-                                  decoration: const BoxDecoration(
-                                    color: AppColors.main,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    '${day.day}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 3),
-
-                                if (holidayName != null)
-                                  Text(
-                                    holidayName,
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.red, // 항상 빨간색 유지
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                              ],
-                            ),
-
-                            if (events.isNotEmpty)
-                              ...events
-                                  .take(2)
-                                  .map(
-                                    (e) => GestureDetector(
-                                      // 여기도 동일
-                                      onTap: () {
-                                        _showEventDetailDialog(day, e);
-                                      },
-                                      child: Text(
-                                        e,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.black,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-
-                            /// 음력은 항상 하단
-                            Expanded(
-                              child: Align(
-                                alignment: Alignment.bottomCenter,
-                                child: Text(
-                                  '$lunarMonth/$lunarDay',
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                    outsideBuilder: (context, day, focusedDay) {
-                      final lunar = Lunar.fromDate(day);
-                      final lunarMonth = lunar.getMonth();
-                      final lunarDay = lunar.getDay();
-
-                      return Container(
-                        padding: const EdgeInsets.only(top: 5),
-                        alignment: Alignment.topCenter,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Container(
-                              width: 30,
-                              height: 30,
-                              alignment: Alignment.center,
-                              child: Text(
-                                '${day.day}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey, // 다른 달은 흐리게
-                                ),
-                              ),
-                            ),
-                            Text(
-                              '$lunarMonth/$lunarDay',
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                  onPageChanged: (focusedDay) {
-                    setState(() {
-                      _focusedDay = focusedDay;
-                    });
-                  },
-                );
-              },
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 50),
+              child: MonthCalendar(
+                focusedDay: _focusedDay,
+                selectedDay: _selectedDay,
+                getEvents: _getEventsForDay,
+                getHolidayName: _getHolidayName,
+                onDaySelected: (selectedDay, focusedDay) {
+                  setState(() {
+                    _selectedDay = selectedDay;
+                    _focusedDay = focusedDay;
+                  });
+                },
+                onPageChanged: (focusedDay) {
+                  setState(() {
+                    _focusedDay = focusedDay;
+                  });
+                },
+                onEventTap: _showEventDetailDialog,
+              ),
             ),
           ),
         ],
